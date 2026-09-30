@@ -257,6 +257,42 @@ function calculateTotal(price, tax, quantity) {
 }
 ```
 
+## 1.12 Scale function names to their context
+
+**Directive:** Give narrowly scoped helpers specific names that distinguish them from neighboring operations, and keep widely visible general operations concise.
+
+**Rationale:** Helpers in a narrow context compete with similar names, while broadly used operations are distinct by context and benefit from concise call sites.
+
+### Anti-Pattern
+
+```typescript
+class CsvImporter {
+  private open() {}
+  private open() {}
+  private open() {}
+  private read(handle: Handle) {}
+  private read(handle: Handle) {}
+  private write(row: Row, reason: string) {}
+  private write(offset: number) {}
+  private close() {}
+}
+```
+
+### Enforced Pattern
+
+```typescript
+class CsvImporter {
+  private openSourceFileForStreaming() {}
+  private openRejectsFileForWriting() {}
+  private openCheckpointFileForResuming() {}
+}
+
+File.open(path);
+Math.log(value);
+JSON.parse(text);
+Object.freeze(config);
+```
+
 # 2. Functions and Control Flow
 
 ## 2.1 Keep functions small
@@ -448,37 +484,65 @@ contractor.getBenefits();
 contractor.getSchedule();
 ```
 
-## 2.5 Refactor in small verified increments
+## 2.5 Refactor for real requirements in small verified increments
 
-**Directive:** Refactor through small behavior-preserving steps backed by tests or equivalent checks instead of rewriting working code in one unverified pass.
+**Directive:** Wait for a real requirement before refactoring working code, then reshape it in small behavior-preserving steps backed by tests or equivalent checks.
 
-**Rationale:** Clean code is usually rewritten into shape through small, test-backed refactorings rather than written perfectly on the first attempt.
+**Rationale:** A real requirement shows where flexibility is needed, and small verified refactorings make room for it without changing existing behavior.
 
 ### Anti-Pattern
 
-```javascript
-function processOrders(orders) {
-  for (const order of orders) {
-    if (order.isValid) {
-      save(order);
-      notify(order);
-    }
-  }
+```typescript
+function applyCoupon(code: Coupon, price: number) {
+  const coupon = COUPONS[code];
+  if ("off" in coupon) return price - coupon.off;
+  return price * (1 - coupon.pct / 100);
 }
+
+const COUPONS = {
+  SAVE10: { pct: 10 },
+  SAVE20: { pct: 20 },
+  HALF: { pct: 50 },
+  SUMMER25: { pct: 25 },
+  WELCOME: { off: 5 },
+};
 ```
 
 ### Enforced Pattern
 
-```javascript
-function processOrders(orders) {
-  const validOrders = orders.filter(isValidOrder);
-  validOrders.forEach(processOrder);
+```typescript
+interface Discount {
+  apply(price: number): number;
 }
 
-function processOrder(order) {
-  save(order);
-  notify(order);
+class PercentOff implements Discount {
+  constructor(private pct: number) {}
+
+  apply(price: number) {
+    return price * (1 - this.pct / 100);
+  }
 }
+
+class AmountOff implements Discount {
+  constructor(private off: number) {}
+
+  apply(price: number) {
+    return price - this.off;
+  }
+}
+
+function applyCoupon(code: Coupon, price: number) {
+  const discount = COUPONS[code];
+  return discount.apply(price);
+}
+
+const COUPONS = {
+  SAVE10: new PercentOff(10),
+  SAVE20: new PercentOff(20),
+  HALF: new PercentOff(50),
+  SUMMER25: new PercentOff(25),
+  WELCOME: new AmountOff(5),
+};
 ```
 
 # 3. Arguments and Side Effects
@@ -1193,6 +1257,48 @@ class ProductPricing {
 }
 ```
 
+## 7.6 Put behavior with the data it uses
+
+**Directive:** Move a method onto the object when most of its arguments come from that object.
+
+**Rationale:** Keeping behavior with the data it uses lets callers ask for a domain result without passing or knowing the object's internal details.
+
+### Anti-Pattern
+
+```typescript
+class BillingService {
+  amountDue(
+    subtotal: number,
+    taxRate: number,
+    payments: Payment[],
+  ) {
+    const tax = subtotal * taxRate;
+    const paid = sum(payments);
+    return subtotal + tax - paid;
+  }
+}
+
+const due = billing.amountDue(
+  invoice.subtotal,
+  invoice.taxRate,
+  invoice.payments,
+);
+```
+
+### Enforced Pattern
+
+```typescript
+class Invoice {
+  amountDue() {
+    const tax = this.subtotal * this.taxRate;
+    const paid = sum(this.payments);
+    return this.subtotal + tax - paid - this.credit;
+  }
+}
+
+const due = invoice.amountDue();
+```
+
 # 8. Error Handling
 
 ## 8.1 Replace nested error-code branches with exceptions
@@ -1443,4 +1549,418 @@ public Double getDiscount() {
   if (discount == null) return 0.0;
   return discount;
 }
+```
+
+# 9. Unit Tests
+
+## 9.1 Keep tests one step ahead of production code
+
+**Directive:** Write only enough test code to fail, then only enough production code to pass, and repeat that cycle for each new behavior.
+
+**Rationale:** Alternating the smallest failing test with the smallest passing implementation ensures every production line exists because a test required it.
+
+### Anti-Pattern
+
+```typescript
+export function canEdit(user, post) {
+  return post.authorId === user.id;
+}
+```
+
+### Enforced Pattern
+
+```typescript
+const post = { authorId: "ana" };
+
+test("the author can edit", () => {
+  expect(canEdit({ id: "ana" }, post)).toBe(true);
+});
+
+test("anyone else cannot", () => {
+  expect(canEdit({ id: "bo" }, post)).toBe(false);
+});
+
+export function canEdit(user, post) {
+  return post.authorId === user.id;
+}
+```
+
+## 9.2 Keep test code clean
+
+**Directive:** Refactor tests for readability and maintainability whenever their clutter or tangling obscures the behavior they protect.
+
+**Rationale:** Tests that remain easy to read also remain easy to update instead of being skipped when production behavior changes.
+
+### Anti-Pattern
+
+```typescript
+it.skip("ships free over 100", () => {
+  const cart = new Cart();
+  cart.add({ sku: "book", price: 120 });
+  const zone = ShippingZone.lookup("domestic");
+  const quote = new ShippingCalculator(zone).quote(cart.items);
+  expect(quote.total).toBe(0);
+});
+```
+
+### Enforced Pattern
+
+```typescript
+it("ships free over 100", () => {
+  expect(shipping(120)).toBe(0);
+});
+```
+
+## 9.3 Use tests to keep code changeable
+
+**Directive:** Protect observable behavior with tests before replacing a slow, tangled, or hard-to-read implementation.
+
+**Rationale:** A focused suite makes code flexible, maintainable, and reusable by identifying exactly which behavior a refactor breaks.
+
+### Anti-Pattern
+
+```typescript
+function duplicateEmails(users: User[]) {
+  const seen: string[] = [];
+  for (const u of users) {
+    const key = normalize(u.email);
+    const n = users.filter(
+      (x) => normalize(x.email) === key,
+    ).length;
+    if (n > 1 && !seen.includes(key)) seen.push(key);
+  }
+  return seen;
+}
+```
+
+### Enforced Pattern
+
+```typescript
+function duplicateEmails(users: User[]) {
+  const seen = new Set<string>();
+  const repeated = new Set<string>();
+  for (const u of users) {
+    const key = normalize(u.email);
+    if (seen.has(key))
+      repeated.add(key);
+    else seen.add(key);
+  }
+  return [...repeated];
+}
+```
+
+## 9.4 Structure tests as setup, action, and claim
+
+**Directive:** Express each test as three distinct parts that state the required world, run the core action once, and make only the final claim.
+
+**Rationale:** Separating setup, action, and claim reveals what a test checks instead of burying its purpose in mechanical boilerplate.
+
+### Anti-Pattern
+
+```typescript
+test("rejects an expired card", () => {
+  const clock = new FixedClock("2026-01-01");
+  const card = new Card("4111111111111111", 12, 2020, "VISA");
+  const validator = new CardValidator(clock, defaultRules());
+  const result = validator.validate(card);
+  const codes = result.errors.map((error) => error.code);
+  expect(codes).toContain("EXPIRED");
+});
+```
+
+### Enforced Pattern
+
+```typescript
+test("rejects an expired card", () => {
+  givenToday("2026-01-01");
+  const card = cardExpiring("12/2020");
+
+  const result = validate(card);
+
+  expectRejected(result, "EXPIRED");
+});
+```
+
+## 9.5 Test one concept at a time
+
+**Directive:** Split tests that assert separate behavioral promises into focused tests named for the single concept each one guards.
+
+**Rationale:** A single-concept test documents its promise and reports precisely which behavior failed without obscuring the behaviors that still pass.
+
+### Anti-Pattern
+
+```typescript
+test("register", () => {
+  const user = register("sam@acme.io", "hunter2");
+  expect(user.email).toBe("sam@acme.io");
+  expect(user.role).toBe("member");
+  expect(user.verified).toBe(false);
+  expect(user.password).toBeUndefined();
+  expect(() => register("sam@acme.io", "x")).toThrow("TAKEN");
+});
+```
+
+### Enforced Pattern
+
+```typescript
+test("creates an unverified member", () => {
+  const user = register("sam@acme.io", "hunter2");
+  expect(user.email).toBe("sam@acme.io");
+  expect(user.role).toBe("member");
+  expect(user.verified).toBe(false);
+});
+
+test("never exposes the password", () => {
+  const user = register("sam@acme.io", "hunter2");
+  expect(user.password).toBeUndefined();
+});
+
+test("rejects an email that is already registered", () => {
+  register("sam@acme.io", "hunter2");
+  expect(() => register("sam@acme.io", "x")).toThrow("TAKEN");
+});
+```
+
+## 9.6 Make unit tests F.I.R.S.T.
+
+**Directive:** Keep unit tests fast, independent, repeatable in any environment, self-validating with a clear pass or fail, and written just before the production code that makes them pass.
+
+**Rationale:** F.I.R.S.T. tests provide immediate reliable confidence without discouraging frequent execution or coupling production code to hard-to-test dependencies.
+
+### Anti-Pattern
+
+```javascript
+test("charges the card", async () => {
+  const gateway = new StripeGateway(process.env.STRIPE_KEY);
+  const checkout = new Checkout(gateway);
+
+  await checkout.charge(order);
+
+  console.log("Check Stripe to confirm the $20.00 charge");
+});
+```
+
+### Enforced Pattern
+
+```javascript
+// checkout.test.js
+test("charges the card", async () => {
+  const gateway = new FakeGateway();
+  const checkout = new Checkout(gateway);
+
+  await checkout.charge(order);
+
+  expect(gateway.charged).toBe(2000);
+});
+
+// checkout.js
+class Checkout {
+  constructor(gateway) {
+    this.gateway = gateway;
+  }
+
+  async charge(order) {
+    return this.gateway.charge(order.total);
+  }
+}
+```
+
+# 10. Class and Module Design
+
+## 10.1 Give each class one honest noun phrase
+
+**Directive:** Split a class when its responsibilities require an “and” in its name, until each class can be named with one clear noun phrase.
+
+**Rationale:** A class name measures the responsibilities in its code, so an honest name exposes when the class is doing multiple jobs.
+
+### Anti-Pattern
+
+```typescript
+abstract class OrderPricing {
+  abstract subtotal(order: Order): number;
+  abstract discount(order: Order): number;
+  abstract tax(order: Order): number;
+  abstract charge(amount: number): Charge;
+  abstract refund(charge: Charge): Refund;
+  abstract statusOf(charge: Charge): ChargeStatus;
+}
+```
+
+### Enforced Pattern
+
+```typescript
+abstract class OrderPricing {
+  abstract subtotal(order: Order): number;
+  abstract discount(order: Order): number;
+  abstract tax(order: Order): number;
+}
+
+abstract class OrderPayment {
+  abstract charge(amount: number): Charge;
+  abstract refund(charge: Charge): Refund;
+  abstract statusOf(charge: Charge): ChargeStatus;
+}
+```
+
+## 10.2 Keep logic with the data it changes
+
+**Directive:** When a long function's blocks share mutable local state, group that state with the methods that use it into cohesive classes and leave the function to coordinate them.
+
+**Rationale:** Keeping logic with its data makes code easier to change than shortening functions without creating clear ownership.
+
+### Anti-Pattern
+
+```typescript
+function priceCart(cart: Cart): Quote {
+  let subtotal = 0;
+  let discount = 0;
+  let weight = 0;
+  let oversize = false;
+
+  for (const item of cart.items) {
+    const line = item.price * item.qty;
+    subtotal += line;
+    if (item.onSale) discount += line * 0.1;
+    weight += item.weightKg * item.qty;
+    if (item.lengthCm > 120) oversize = true;
+  }
+
+  let shipping = 5;
+  if (weight > 20) shipping = 12;
+  if (oversize) shipping = 25;
+
+  const total = subtotal - discount + shipping;
+  return { total, shipping };
+}
+```
+
+### Enforced Pattern
+
+```typescript
+function priceCart(cart: Cart): Quote {
+  const totals = new LineTotals();
+  const parcel = new Parcel();
+
+  for (const item of cart.items) {
+    totals.add(item);
+    parcel.add(item);
+  }
+
+  const shipping = parcel.shipping();
+  const total = totals.owed() + shipping;
+  return { total, shipping };
+}
+
+class LineTotals {
+  subtotal = 0;
+  discount = 0;
+
+  add(item: Item) {
+    const line = item.price * item.qty;
+    this.subtotal += line;
+    if (item.onSale) this.discount += line * 0.1;
+  }
+
+  owed() {
+    return this.subtotal - this.discount;
+  }
+}
+
+class Parcel {
+  weight = 0;
+  oversize = false;
+
+  add(item: Item) {
+    this.weight += item.weightKg * item.qty;
+    if (item.lengthCm > 120) this.oversize = true;
+  }
+
+  shipping() {
+    let shipping = 5;
+    if (this.weight > 20) shipping = 12;
+    if (this.oversize) shipping = 25;
+    return shipping;
+  }
+}
+```
+
+## 10.3 Separate workflow policy from implementation detail
+
+**Directive:** Make each module either declare and delegate workflow steps or implement their details, and move the details out when it does both.
+
+**Rationale:** Keeping policy and implementation detail in separate modules gives each one a single reason to change.
+
+### Anti-Pattern
+
+```typescript
+class CheckoutService {
+  async placeOrder(cart: Cart, user: User) {
+    await this.stock.deduct(cart);
+
+    let fee = cart.weightKg * 4.5;
+    if (cart.subtotal > 100) fee = 0;
+    else if (user.hasPrime) fee /= 2;
+    const total = cart.subtotal + fee;
+
+    await this.payments.charge(user, total);
+    await this.orders.save(cart, user);
+    await this.email.confirmOrder(user);
+  }
+}
+```
+
+### Enforced Pattern
+
+```typescript
+class Pricing {
+  total(cart: Cart, user: User) {
+    let fee = cart.weightKg * 4.5;
+    if (cart.subtotal > 100) fee = 0;
+    else if (user.hasPrime) fee /= 2;
+    return cart.subtotal + fee;
+  }
+}
+
+class CheckoutService {
+  async placeOrder(cart: Cart, user: User) {
+    await this.stock.deduct(cart);
+    const total = this.pricing.total(cart, user);
+    await this.payments.charge(user, total);
+    await this.orders.save(cart, user);
+    await this.email.confirmOrder(user);
+  }
+}
+```
+
+## 10.4 Add a class only when it earns its place
+
+**Directive:** Add a class only when it enables isolated testing, removes duplication, names a concept, or holds new behavior so existing code need not change.
+
+**Rationale:** A class that provides none of these benefits adds a design element without making the code easier to change.
+
+### Anti-Pattern
+
+```typescript
+class Order {}
+class OrderPricing {}
+class TaxPolicy {}
+class DiscountPolicy {}
+class OrderStore {}
+class EmailNotifier {}
+class SmsNotifier {}
+```
+
+### Enforced Pattern
+
+```typescript
+class Cart {
+  total() {
+    return sum(this.items);
+  }
+}
+
+test("cart total", () => {
+  const cart = new Cart();
+  expect(cart.total()).toBe(30);
+});
 ```

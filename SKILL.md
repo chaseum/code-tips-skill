@@ -1,13 +1,13 @@
 ---
-name: code-tips
+name: code-tips-skill
 description: >
   Apply Clean Code principles when writing or reviewing code — naming, function
   size, arguments, comments, formatting, objects vs. data structures, error
   handling, and third-party boundaries. Use when the user asks to review code
   for readability, refactor a long function, improve variable or function names,
   decide whether a comment is worth keeping, replace error codes with exceptions,
-  wrap a third-party library, or asks "is this clean code?" / "how would you
-  refactor this?".
+  wrap a third-party library, write or clean up unit tests, use test-driven
+  development, or asks "is this clean code?" / "how would you refactor this?".
 ---
 
 # Code Tips
@@ -26,15 +26,18 @@ do not refactor code that already reads clearly.
 ## The rules
 
 **Naming**
+
 - Names answer why a value exists, not what type it is.
 - Never let a name lie — `accountList` that holds a map is disinformation.
 - Different names must mean different behavior, not `getUser` / `getUserInfo` / `getUserData`.
 - If you can't pronounce it, you can't discuss it in review.
-- Name length should match scope size. Single letters are for short local loops only.
+- Variable names grow with scope; function names use specific terms in narrow contexts and concise terms when widely visible.
+- Reserve single-letter variable names for short local loops.
 - No type encodings — the IDE already knows.
 - No abbreviations the reader has to translate.
 
 **Functions**
+
 - Small. Then smaller.
 - One thing: if you can extract a function whose name isn't a restatement of its body, it was doing two things.
 - One level of abstraction per function; read top-down like a newspaper.
@@ -45,6 +48,7 @@ do not refactor code that already reads clearly.
 - Separate commands (change state) from queries (return answers).
 
 **Comments**
+
 - The best comment is the one you didn't need because the code is clear.
 - Keep comments that encode a business constraint, a warning, or a non-obvious rule.
 - TODOs record a specific reason the work can't happen yet.
@@ -52,16 +56,21 @@ do not refactor code that already reads clearly.
 - Comments must be specific, obvious, and local to the code they describe.
 
 **Formatting**
+
 - Highest-level function first, helpers below their callers.
 - Blank lines separate concepts; related lines stay dense.
 - Declare locals where they're used; class fields stay in the field area.
 
 **Objects and data**
+
 - Objects hide representation and expose behavior; data structures do the opposite.
 - Don't build hybrids — they lose the advantages of both.
 - Law of Demeter: tell your immediate collaborator what you need, don't chain through it.
+- Keep behavior with the data it uses, and separate workflow policy from implementation details.
+- Refactor for a real requirement; add a class only when it supports testing, removes duplication, names a concept, or hosts new behavior.
 
 **Error handling**
+
 - Prefer exceptions to error codes; keep the happy path flat.
 - Write the try/catch contract before the implementation.
 - Wrap third-party exceptions at a boundary you own.
@@ -69,11 +78,23 @@ do not refactor code that already reads clearly.
 - Return empty collections and sensible defaults instead of null.
 
 **Boundaries**
+
 - Wrap third-party libraries behind an interface your application defines.
 - Define the interface you need, test against a fake, and let one adapter translate to the vendor API.
+
+**Unit tests**
+
+- In TDD, alternate between the smallest failing test and the smallest production change that passes it.
+- Keep tests as readable and maintainable as production code so behavior changes remain inexpensive.
+- Use tests to preserve observable behavior while improving an implementation.
+- Make setup state intent, run the action once, and keep the final section focused on the claim.
+- Give each test one behavioral concept and name it for that promise.
+- Keep tests fast, independent, repeatable, self-validating, and timely.
 
 ## Reference
 
 `references/snippets.md` — every rule above with a before/after code pair.
 `references/developer-rules.md` — the same material as numbered, enforceable
-rules suitable for pasting into an `AGENTS.md` or a review checklist.
+rules suitable for pasting into an `AGENTS.md` or a review checklist; read its
+relevant numbered sections when auditing naming, class or module design, or
+unit tests, including when using tests to protect a production refactor.
