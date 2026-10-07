@@ -66,7 +66,7 @@ do not refactor code that already reads clearly.
 - Objects hide representation and expose behavior; data structures do the opposite.
 - Don't build hybrids — they lose the advantages of both.
 - Law of Demeter: tell your immediate collaborator what you need, don't chain through it.
-- Keep behavior with the data it uses, and separate workflow policy from implementation details.
+- Keep behavior with the data it uses, separate workflow policy from implementation details, and give each class one job and one reason to change.
 - Refactor for a real requirement; add a class only when it supports testing, removes duplication, names a concept, or hosts new behavior.
 
 **Error handling**

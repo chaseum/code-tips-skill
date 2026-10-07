@@ -3286,7 +3286,7 @@ So before you debate how long a function's name should be,
 look at how wide its scope actually is.
 Follow for more clean code principles coming next.
 
-## Clean Code
+## Classes
 
 Words like manager and processor in a class name
 are almost always a warning sign.
@@ -3448,3 +3448,34 @@ Anything past that is an element you did not need.
 And the last rule of simple design
 is to have as few of those as you can
 follow. For more clean code principles coming next.
+
+## Solid
+
+Single responsibility principle says every class should have one job
+and only one. A job is the one thing the class is in charge of,
+and every method in it should serve it.
+The moment you add methods that serve a different purpose,
+the class takes on a second job.
+You can usually see it right in the method list,
+where the methods fall into distinct groups,
+each doing its own kind of work.
+Because the principle allows only one job per class,
+we have to split those groups into classes of their own.
+Now, any new requirement belongs to a single job,
+so it lands in just one class.
+Take this invoice class. It calculates what the customer owes,
+builds the email, and sends it.
+A change to tax rules forces an update to pricing,
+and an overdue reminder forces a change to email delivery,
+all in the exact same class.
+It is changing for two very different reasons,
+and that breaks the principle.
+When each job gets its own class,
+a change to one can no longer break the other.
+Whenever you write a class,
+ask what would make you change it.
+More than one answer means more than one class.
+But what exactly counts as a reason to change?
+That's where most people get this principle wrong,
+and it's what we cover in the next lesson.
+Follow for more engineering principles coming next.

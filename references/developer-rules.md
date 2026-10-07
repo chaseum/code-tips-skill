@@ -1767,38 +1767,39 @@ class Checkout {
 
 # 10. Class and Module Design
 
-## 10.1 Give each class one honest noun phrase
+## 10.1 Give each class one job and one reason to change
 
-**Directive:** Split a class when its responsibilities require an “and” in its name, until each class can be named with one clear noun phrase.
+**Directive:** Keep one job in each class and split it when its methods serve distinct purposes or its honest name requires an “and.”
 
-**Rationale:** A class name measures the responsibilities in its code, so an honest name exposes when the class is doing multiple jobs.
+**Rationale:** Each class should change for one reason so a change to one job cannot break an unrelated one.
 
 ### Anti-Pattern
 
-```typescript
-abstract class OrderPricing {
-  abstract subtotal(order: Order): number;
-  abstract discount(order: Order): number;
-  abstract tax(order: Order): number;
-  abstract charge(amount: number): Charge;
-  abstract refund(charge: Charge): Refund;
-  abstract statusOf(charge: Charge): ChargeStatus;
+```javascript
+class Invoice {
+  subtotal() {}
+  tax() {}
+  total() {}
+  emailBody() {}
+  send() {}
+  sendReminder() {}
 }
 ```
 
 ### Enforced Pattern
 
-```typescript
-abstract class OrderPricing {
-  abstract subtotal(order: Order): number;
-  abstract discount(order: Order): number;
-  abstract tax(order: Order): number;
+```javascript
+class Invoice {
+  subtotal() {}
+  tax() {}
+  total() {}
 }
 
-abstract class OrderPayment {
-  abstract charge(amount: number): Charge;
-  abstract refund(charge: Charge): Refund;
-  abstract statusOf(charge: Charge): ChargeStatus;
+class InvoiceMailer {
+  emailBody() {}
+  send() {}
+  sendReminder() {}
+  sendReceipt() {}
 }
 ```
 
